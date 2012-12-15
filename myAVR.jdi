@@ -1,0 +1,8 @@
+<sld_project_info>
+  <file_info>
+    <file checksum="0x0019807C" device="EP2C5T144C8" path="myAVR.sof" usercode="0xFFFFFFFF"/>
+    <file checksum="0x0737C698" device="EPCS4" path="myAVR.pof" usercode="0x00000000"/>
+  </file_info>
+  <hub_info ir_width="0" node_count="0"/>
+  <node_info/>
+</sld_project_info>
