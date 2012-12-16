@@ -31,7 +31,9 @@ output wire [7:0]portb;
 
 //==== opcodes =========
 parameter CMD_ADD  = 16'b000011xxxxxxxxxx;
+parameter CMD_ADC  = 16'b000111xxxxxxxxxx;
 parameter CMD_SUB  = 16'b000110xxxxxxxxxx;
+parameter CMD_SBC  = 16'b000010xxxxxxxxxx;
 
 parameter CMD_AND  = 16'b001000xxxxxxxxxx;
 parameter CMD_EOR  = 16'b001001xxxxxxxxxx;
@@ -55,8 +57,8 @@ rom prog (ip, cnt[25], opcode);
 //==== state ===========
 reg [7:0]ip = 0;
 
-reg [7:0]registers[0:31];
-reg [7:0]ioports[0:63];
+reg [7:0]registers[16:31];
+//reg [7:0]ioports[0:63];
 assign porta = registers[20];
 assign portb = registers[21];
 
@@ -78,20 +80,44 @@ assign k = {opcode[9],opcode[8],opcode[7],opcode[6],opcode[5],opcode[4],opcode[3
 wire [7:0]K;
 assign K = {opcode[11],opcode[10],opcode[9],opcode[8],opcode[3],opcode[2],opcode[1],opcode[0]};
 
+
+wire [7:0]Rs = registers[src[4:0]];
+wire [7:0]Rd = registers[dest[4:0]];
+wire [7:0]R = Rd + ( opcode[10]&opcode[12]&~C | ~opcode[10]&~opcode[12]&C ? 0 : 1) + ( opcode[10] ? Rs : ~Rs);
+
 always @(negedge cnt[25])
 begin
+
 	//==== ADD ==================================================================
-	if(opcode[15:10] == CMD_ADD[15:10])
+	if( opcode[15:10] == CMD_ADD[15:10] )
 	begin
-		registers[dest[4:0]] <= registers[dest[4:0]] + registers[src[4:0]];
-		Z <= ~|( registers[dest[4:0]] + registers[src[4:0]] );
+		registers[dest[4:0]] <= R;
+		Z <= ~|R;
+		C <= Rs[7]&~R[7] | Rd[7]&~R[7] | Rs[7]&Rd[7];
+	end
+	
+	//==== ADC ==================================================================
+	if( opcode[15:10] == CMD_ADC[15:10] )
+	begin
+		registers[dest[4:0]] <= R;
+		Z <= ~|R;
+		C <= Rs[7]&~R[7] | Rd[7]&~R[7] | Rs[7]&Rd[7];
 	end
 	
 	//==== SUB ==================================================================
-	if(opcode[15:10] == CMD_SUB[15:10])
+	if( opcode[15:10] == CMD_SUB[15:10] )
 	begin
-		registers[dest[4:0]] <= registers[dest[4:0]] - registers[src[4:0]];
-		Z <= ~|( registers[dest[4:0]] - registers[src[4:0]] );
+		registers[dest[4:0]] <= R;
+		Z <= ~|R;
+		C <= Rs[7]&~Rd[7] | R[7]&~Rd[7] | Rs[7]&R[7];
+	end
+	
+	//==== SBC ==================================================================
+	if(  opcode[15:10] == CMD_SBC[15:10] )
+	begin
+		registers[dest[4:0]] <= R;
+		Z <= ~|R;
+		C <= Rs[7]&~Rd[7] | R[7]&~Rd[7] | Rs[7]&R[7];
 	end
 	
 	
@@ -160,3 +186,4 @@ begin
 end
 
 endmodule
+
