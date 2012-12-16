@@ -14,9 +14,10 @@
 //FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 //ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-module myAVR(clk50,reset,porta,portb);
+module myAVR(clk50,reset,porta,portb,runclk);
 input wire clk50;
 input wire reset;
+output runclk;
 
 //==== Clock divisor ===
 reg [25:0]cnt;
@@ -24,6 +25,7 @@ always @(negedge clk50)
 begin
 	cnt <= cnt + 1;
 end
+assign runclk = cnt[25];
 
 //==== io ==============
 output wire [7:0]porta;
@@ -45,6 +47,8 @@ parameter CMD_LSR  = 16'b1001010xxxxx0110;
 
 parameter CMD_LDI  = 16'b1110xxxxxxxxxxxx;
 
+parameter CMD_SUBI = 16'b0101xxxxxxxxxxxx;
+
 parameter CMD_BREQ = 16'b111100xxxxxxx001;
 parameter CMD_BRNE = 16'b111101xxxxxxx001;
 parameter CMD_BRCS = 16'b111100xxxxxxx000;
@@ -60,7 +64,8 @@ reg [7:0]ip = 0;
 reg [7:0]registers[16:31];
 //reg [7:0]ioports[0:63];
 assign porta = registers[20];
-assign portb = registers[21];
+//assign portb = registers[21];
+assign portb = ip;
 
 reg I,T,H,S,V,N,Z = 0,C = 0;
 
@@ -84,6 +89,9 @@ assign K = {opcode[11],opcode[10],opcode[9],opcode[8],opcode[3],opcode[2],opcode
 wire [7:0]Rs = registers[src[4:0]];
 wire [7:0]Rd = registers[dest[4:0]];
 wire [7:0]R = Rd + ( opcode[10]&opcode[12]&~C | ~opcode[10]&~opcode[12]&C ? 0 : 1) + ( opcode[10] ? Rs : ~Rs);
+
+wire [7:0]Rsi = registers[{1'b1,dest[3:0]}];
+wire [7:0]Ri = Rsi - K;
 
 always @(negedge cnt[25])
 begin
@@ -150,39 +158,27 @@ begin
 	//==== LDI ==================================================================
 	if( opcode[15:12] == CMD_LDI[15:12] )
 	begin
-		registers[{1'b1,dest[3:0]}] <= {opcode[11],opcode[10],opcode[9],opcode[8],opcode[3],opcode[2],opcode[1],opcode[0]};
+		registers[{1'b1,dest[3:0]}] <= K;
 	end
 	
-	
-	//==== BREQ =================================================================
-	if({opcode[15:10],opcode[2:0]} == {CMD_BREQ[15:10],CMD_BREQ[2:0]})
+	//==== SUBI =================================================================
+	if( opcode[15:12] == CMD_SUBI[15:12] )
 	begin
-		if(Z)
-			ip <= ip + {k[6],k};
+		registers[{1'b1,dest[3:0]}] <= Ri;
+		Z <= ~|Ri;
 	end
 	
-	//==== BRNE =================================================================
-	if({opcode[15:10],opcode[2:0]} == {CMD_BRNE[15:10],CMD_BRNE[2:0]})
-	begin
-		if(~Z)
-			ip <= ip + {k[6],k};
-	end
 	
-	//==== BRCS =================================================================
-	if({opcode[15:10],opcode[2:0]} == {CMD_BRCS[15:10],CMD_BRCS[2:0]})
+	//==== BREQ || BRNE =================================================================
+	if({opcode[15:11],opcode[2:0]} == {CMD_BREQ[15:11],CMD_BREQ[2:0]})
 	begin
-		if(C)
-			ip <= ip + {k[6],k};
+		if(Z^opcode[10])
+			ip <= ip + {k[6],k} + 1;
+		else
+			ip <= ip + 1'd1;
 	end
-	
-	//==== BRCC =================================================================
-	if({opcode[15:10],opcode[2:0]} == {CMD_BRCC[15:10],CMD_BRCC[2:0]})
-	begin
-		if(~C)
-			ip <= ip + {k[6],k};
-	end
-
-	ip <= ip + 1'd1;
+	else
+		ip <= ip + 1'd1;
 end
 
 endmodule
